@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Bitcoin 16:00 Fix Analyzer — Analyze the ideal trading levels based on the previous day's 16:00 New York fixing price." />
+  <title>₿ Bitcoin 16:00 Fix Analyzer</title>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- ========== HEADER ========== -->
+  <header class="site-header">
+    <nav class="nav-container">
+      <a href="#home" data-page="home" class="logo">
+        <span class="logo-symbol"><i class="fa-brands fa-bitcoin"></i></span>
+        <span>Bitcoin Fix Analyzer</span>
+      </a>
+
+      <ul class="nav-links">
+        <li><a href="#home" data-page="home" class="active">Home</a></li>
+        <li><a href="#about" data-page="about">About</a></li>
+        <li><a href="#faq" data-page="faq">FAQ</a></li>
+        <li><a href="#contact" data-page="contact">Contact</a></li>
+      </ul>
+
+      <div class="datetime" id="datetime">—</div>
+    </nav>
+  </header>
+
+  <main>
+    <!-- ================= HOME ================= -->
+    <section id="page-home" class="page active">
+      <!-- Hero -->
+      <div class="hero">
+        <div class="hero-badge">
+          <i class="fa-solid fa-bolt"></i> Live Market Analysis
+        </div>
+        <h1><i class="fa-brands fa-bitcoin"></i> Bitcoin 16:00 Fix Analyzer</h1>
+        <p class="subtitle">
+          The ideal price for trading is determined by the movement of the 24-position strikes.<br />
+          <strong>Bitcoin 16:00 Fix</strong> — New York time reference.
+        </p>
+        <p class="purpose">
+          <i class="fa-solid fa-crosshairs"></i>
+          Analyze today's price action against the <strong>previous day's 16:00 New York fixing</strong>.
+        </p>
+      </div>
+
+      <!-- Stats -->
+      <section class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon icon-blue"><i class="fa-solid fa-chart-line"></i></div>
+          <div class="stat-body">
+            <div class="stat-label">Average · 24h</div>
+            <div class="stat-value" id="stat-average">—</div>
+            <div class="stat-unit">USD</div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon icon-amber"><i class="fa-solid fa-arrow-right-arrow-left"></i></div>
+          <div class="stat-body">
+            <div class="stat-label">Difference from Fix</div>
+            <div class="stat-value" id="stat-difference">—</div>
+            <div class="stat-unit">USD</div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon icon-violet"><i class="fa-solid fa-up-down"></i></div>
+          <div class="stat-body">
+            <div class="stat-label">Range · 24h</div>
+            <div class="stat-value" id="stat-range">—</div>
+            <div class="stat-unit">USD</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Current price -->
+      <section class="current-price-card">
+        <div class="current-price-header">
+          <span class="live-badge"><span class="live-dot"></span>LIVE</span>
+          <span class="current-price-label">Bitcoin / U.S. Dollar</span>
+        </div>
+        <div class="current-price" id="current-price">—</div>
+        <div class="price-meta">
+          <span id="price-change" class="price-change">—</span>
+          <span class="fix-info">
+            Previous 16:00 NY Fix:
+            <strong id="fix-price">—</strong>
+            <span id="fix-source" class="fix-source"></span>
+          </span>
+        </div>
+      </section>
+
+      <!-- Levels -->
+      <section class="levels-section">
+        <div class="section-head">
+          <div>
+            <h2 class="section-title">Trading Levels</h2>
+            <p class="section-desc">
+              Levels derived from the previous day's 16:00 New York fixing price.
+            </p>
+          </div>
+          <div class="levels-legend">
+            <span><i class="dot dot-fix"></i> Fix</span>
+            <span><i class="dot dot-up"></i> Above</span>
+            <span><i class="dot dot-down"></i> Below</span>
+          </div>
+        </div>
+        <div class="levels-ladder" id="levels-container"></div>
+      </section>
+
+      <!-- Chart: Spot -->
+      <section class="chart-section">
+        <div class="section-head">
+          <div>
+            <h2 class="section-title">
+              <i class="fa-solid fa-chart-area"></i> Price Chart · Last 24 Hours
+            </h2>
+            <p class="section-desc">Real-time BTC/USD spot movement.</p>
+          </div>
+        </div>
+        <div class="chart-container">
+          <canvas id="priceChart"></canvas>
+        </div>
+      </section>
+
+      <!-- Chart: Delta vs Previous Day Fix -->
+      <section class="chart-section">
+        <div class="section-head">
+          <div>
+            <h2 class="section-title">
+              <i class="fa-solid fa-code-compare"></i> Daily Delta vs Previous 16:00 NY Fix
+            </h2>
+            <p class="section-desc">
+              Percentage difference between the intraday price and the previous day's fixing price.
+            </p>
+          </div>
+        </div>
+        <div class="chart-container">
+          <canvas id="deltaChart"></canvas>
+        </div>
+      </section>
+    </section>
+
+    <!-- ================= ABOUT ================= -->
+    <section id="page-about" class="page">
+      <h1 class="page-title">About</h1>
+
+      <div class="content-card">
+        <h2>What is the Bitcoin 16:00 Fix?</h2>
+        <p>
+          The Bitcoin 16:00 Fix is the daily reference price set during the fixing window at
+          <strong>16:00 New York time</strong>. It is the benchmark used by <strong>CME Group</strong>
+          to settle Bitcoin futures and by major ETF issuers to calculate the Net Asset Value (NAV)
+          of spot Bitcoin ETFs. Because of this, the fix acts as a global institutional anchor for
+          positioning, options strikes, and risk management.
+        </p>
+
+        <h2>How this analyzer works</h2>
+        <p>
+          The tool retrieves the <strong>previous day's 16:00 New York fixing</strong> and derives a
+          set of trading levels at <strong>±0.25%, ±0.50%, ±0.75%, and ±1.00%</strong> around it.
+          These derived strikes represent the zones where options positioning and institutional
+          order flow tend to cluster, offering potential support and resistance for short-term
+          trading.
+        </p>
+
+        <h2>Understanding the metrics</h2>
+        <ul>
+          <li><strong>Average · 24h:</strong> the mean price of Bitcoin over the last 24 hours.</li>
+          <li><strong>Difference from Fix:</strong> how far the current spot price is from the previous day's 16:00 NY fix.</li>
+          <li><strong>Range · 24h:</strong> the difference between the highest and lowest price over the last 24 hours.</li>
+        </ul>
+
+        <h2>Why the previous day's fix matters</h2>
+        <p>
+          The previous day's fix serves as the anchor for the entire current session. Options dealers
+          hedge around strikes derived from it; ETF issuers reconcile flows against it; institutional
+          desks reference it as a "fair value" print. This makes the fix a powerful, slow-moving
+          magnet that price often oscillates around until the next fixing window.
+        </p>
+      </div>
+    </section>
+
+    <!-- ================= FAQ ================= -->
+    <section id="page-faq" class="page">
+      <h1 class="page-title">Frequently Asked Questions</h1>
+
+      <div class="faq-list">
+        <details class="faq-item">
+          <summary>
+            <span><i class="fa-solid fa-circle-question"></i> What is the Bitcoin 16:00 Fix?</span>
+            <i class="fa-solid fa-chevron-down faq-chevron"></i>
+          </summary>
+          <div class="faq-body">
+            <p>
+              The Bitcoin 16:00 Fix is the daily reference price determined during the fixing window
+              that ends at 16:00 New York time. It is published by the <strong>CME Group</strong> and
+              used as the settlement benchmark for Bitcoin futures and by ETF issuers to compute the
+              NAV of their spot Bitcoin products.
+            </p>
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>
+            <span><i class="fa-solid fa-circle-question"></i> Why do you use the previous day's fix?</span>
+            <i class="fa-solid fa-chevron-down faq-chevron"></i>
+          </summary>
+          <div class="faq-body">
+            <p>
+              The most recent closed fixing window is the previous day's 16:00 NY fix. Using it as an
+              anchor lets you compare today's live price against an already-settled, institutionally
+              recognised reference — which is exactly how dealers, ETF desks and options market
+              makers structure their positioning.
+            </p>
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>
+            <span><i class="fa-solid fa-circle-question"></i> How are the trading levels calculated?</span>
+            <i class="fa-solid fa-chevron-down faq-chevron"></i>
+          </summary>
+          <div class="faq-body">
+            <p>
+              Each level is a simple percentage offset from the previous day's fix:
+              <strong>±0.25%, ±0.50%, ±0.75%, ±1.00%</strong>. The FIX row is the anchor itself.
+              Levels already touched by the live spot price are highlighted in amber.
+            </p>
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>
+            <span><i class="fa-solid fa-circle-question"></i> What does the Daily Delta chart show?</span>
+            <i class="fa-solid fa-chevron-down faq-chevron"></i>
+          </summary>
+          <div class="faq-body">
+            <p>
+              The Delta chart plots the percentage difference between each intraday price point and
+              the previous day's 16:00 NY fix. Positive bars mean the price is trading above the fix;
+              negative bars mean it is trading below. It is a clean way to see how today's session is
+              positioning itself relative to the last settled benchmark.
+            </p>
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>
+            <span><i class="fa-solid fa-circle-question"></i> How often does the data refresh?</span>
+            <i class="fa-solid fa-chevron-down faq-chevron"></i>
+          </summary>
+          <div class="faq-body">
+            <p>
+              The live price refreshes every <strong>5 seconds</strong>. The historical series used
+              for the charts and the fix derivation refreshes every <strong>5 minutes</strong>.
+            </p>
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>
+            <span><i class="fa-solid fa-circle-question"></i> Is this financial advice?</span>
+            <i class="fa-solid fa-chevron-down faq-chevron"></i>
+          </summary>
+          <div class="faq-body">
+            <p>
+              <strong>No.</strong> This tool is an educational and informational analysis instrument.
+              It does not provide investment recommendations, does not execute orders, and does not
+              manage funds. See the full disclaimer at the bottom of the page.
+            </p>
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>
+            <span><i class="fa-solid fa-circle-question"></i> Can I use it for automated trading?</span>
+            <i class="fa-solid fa-chevron-down faq-chevron"></i>
+          </summary>
+          <div class="faq-body">
+            <p>
+              You can use the levels as reference inputs for your own models, but you are solely
+              responsible for any decision, order, or algorithm you build on top of them. Always
+              validate any signal with independent sources and proper risk management.
+            </p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- ================= CONTACT ================= -->
+    <section id="page-contact" class="page">
+      <h1 class="page-title">Contact</h1>
+
+      <div class="content-card">
+        <p class="contact-intro">
+          Questions, feedback, or partnership inquiries? Send us a message and we will get back to you.
+        </p>
+
+        <form class="contact-form" id="contact-form">
+          <div class="form-row">
+            <label for="name">Name</label>
+            <input type="text" id="name" name="name" required placeholder="Your full name" />
+          </div>
+
+          <div class="form-row">
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" required placeholder="you@example.com" />
+          </div>
+
+          <div class="form-row">
+            <label for="subject">Subject</label>
+            <input type="text" id="subject" name="subject" placeholder="What is this about?" />
+          </div>
+
+          <div class="form-row">
+            <label for="message">Message</label>
+            <textarea id="message" name="message" rows="5" required placeholder="Write your message here…"></textarea>
+          </div>
+
+          <button type="submit" class="btn-primary">
+            <i class="fa-solid fa-paper-plane"></i> Send Message
+          </button>
+
+          <p class="form-status" id="form-status"></p>
+        </form>
+
+        <div class="contact-info">
+          <p><i class="fa-solid fa-envelope"></i> contact@bitcoinfixanalyzer.io</p>
+          <p><i class="fa-solid fa-globe"></i> www.bitcoinfixanalyzer.io</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ========== FOOTER ========== -->
+  <footer class="site-footer">
+    <div class="footer-content">
+
+      <!-- WHAT THIS SITE DOES -->
+      <section class="footer-section">
+        <h3 class="footer-title">
+          <i class="fa-solid fa-circle-info"></i> What This Site Does
+        </h3>
+        <p>
+          <strong>Bitcoin 16:00 Fix Analyzer</strong> is an analytical dashboard designed to help
+          traders and analysts study how the live Bitcoin price behaves relative to the
+          <strong>previous day's 16:00 New York fixing</strong> — the institutional reference price
+          published by the CME Group and used to settle futures contracts and compute ETF NAVs.
+        </p>
+        <p>
+          The tool automatically derives a ladder of trading levels at <strong>±0.25%, ±0.50%,
+          ±0.75%, and ±1.00%</strong> around that fix, highlights the ones already reached by the
+          spot price, and plots two charts: the live BTC/USD spot movement over the last 24 hours,
+          and the intraday percentage delta versus the previous day's fixing. Average price,
+          distance from the fix and 24h range are summarised at the top of the home page.
+        </p>
+        <p>
+          Everything runs in the browser, refreshes every 5 seconds, and is meant purely as a
+          visual, structural framework to help you read price action around an institutional
+          benchmark. It is <em>not</em> a signal generator, <em>not</em> an order router, and
+          <em>not</em> an investment recommendation service.
+        </p>
+      </section>
+
+      <!-- TECH STACK -->
+      <section class="footer-section">
+        <h3 class="footer-title">
+          <i class="fa-solid fa-code"></i> Built With
+        </h3>
+        <div class="tech-stack">
+          <div class="tech-chip"><i class="fa-brands fa-html5"></i> HTML5</div>
+          <div class="tech-chip"><i class="fa-brands fa-css3-alt"></i> CSS3</div>
+          <div class="tech-chip"><i class="fa-brands fa-js"></i> JavaScript</div>
+          <div class="tech-chip"><i class="fa-solid fa-chart-simple"></i> Chart.js</div>
+          <div class="tech-chip"><i class="fa-brands fa-bitcoin"></i> Bitcoin Data</div>
+          <div class="tech-chip"><i class="fa-solid fa-toolbox"></i> Made to Utilise</div>
+        </div>
+      </section>
+
+      <!-- DISCLAIMER -->
+      <section class="footer-section">
+        <div class="disclaimer">
+          <h3>
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            Financial Disclaimer — Please Read Carefully
+          </h3>
+
+          <p>
+            <strong>This website is not an investment recommendation, financial advice, or an
+            analysis service.</strong> All content, data, levels, charts, percentages and
+            observations shown on Bitcoin 16:00 Fix Analyzer are provided strictly for
+            <strong>informational, educational and research purposes</strong>. Nothing on this site
+            constitutes, or should be construed as, investment advice, trading advice, portfolio
+            management, a recommendation to buy, sell, hold or otherwise transact in Bitcoin, in
+            any other cryptocurrency, in futures, options, ETFs or any other financial instrument.
+          </p>
+
+          <p>
+            The levels displayed (FIX, ±0.25%, ±0.50%, ±0.75%, ±1.00%) are <strong>purely
+            mathematical offsets</strong> calculated from the previous day's 16:00 New York fixing
+            price. They are <strong>not</strong> predictive signals, <strong>not</strong> confirmed
+            support or resistance, and <strong>not</strong> a guarantee of any market behaviour.
+            Any similarity to actual price reactions is coincidental and should not be relied upon
+            for any trading decision.
+          </p>
+
+          <p>
+            Trading cryptocurrencies and their derivatives involves <strong>substantial risk</strong>,
+            including the risk of losing the entire invested capital, and is not suitable for every
+            investor. Leverage amplifies both gains and losses. Market data may be delayed,
+            incomplete, inaccurate or unavailable at any time, and prices can change abruptly. Past
+            performance, historical fixing levels and derived offsets are <strong>not indicative of
+            future results</strong>.
+          </p>
+
+          <p>
+            By using this website you acknowledge and agree that: (a) you are solely responsible for
+            your own investment, trading and risk-management decisions; (b) the operators of this
+            website are not acting as your advisor, broker, dealer, fiduciary or agent; (c) you will
+            not hold the operators liable for any direct, indirect, incidental, consequential or
+            punitive loss or damage arising from the use, misuse or interpretation of the
+            information provided; and (d) you will always verify data with official sources — such
+            as the CME Group's official fixing publications — before acting on it.
+          </p>
+
+          <p>
+            If you are unsure about anything shown here, or if trading is not appropriate for your
+            financial situation, please consult a licensed and regulated financial professional
+            before making any decision.
+          </p>
+        </div>
+      </section>
+
+      <div class="copyright">
+        <span>© 2025 Bitcoin 16:00 Fix Analyzer. All rights reserved.</span>
+        <span>v1.0.0</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
