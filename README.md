@@ -1,5 +1,6 @@
 # ₿ Bitcoin 16:00 Fix Analyzer
 
+
 > **The ideal price for trading is determined by the movement of the 24-position strikes.**
 > **Bitcoin 16:00 Fix — New York time reference.**
 
@@ -42,15 +43,9 @@ percentage delta versus the previous day's fixing.
 
 ## 🖼 Screenshots
 
-> _Add your own screenshots here after deployment._
+https://albertosassetti6-byte.github.io/Bitcoin-16-00-Fix-Analyzer/#home
 
-| Home | Charts |
-|---|---|
-| ![Home](docs/screenshot-home.png) | ![Charts](docs/screenshot-charts.png) |
 
-| About | FAQ |
-|---|---|
-| ![About](docs/screenshot-about.png) | ![FAQ](docs/screenshot-faq.png) |
 
 ---
 
@@ -70,6 +65,7 @@ No npm, no bundler, no framework. Everything runs directly in the browser.
 
 ---
 
+https://albertosassetti6-byte.github.io/Bitcoin-16-00-Fix-Analyzer/#home
 
 
 
