@@ -4,6 +4,7 @@
    Reference fix:    Previous day's 16:00 New York time
    Auto-refresh:     Spot every 5s, history every 5 minutes
    Charts:           1) 24h spot    2) intraday delta vs fix
+   Price APIs:       Multi-provider fallback chain (5 sources)
    ============================================================ */
 
 // ------------------------------------------------------------
@@ -15,6 +16,7 @@ const CONFIG = {
   CHART_MAX_POINTS: 80,
   LEVELS_PERCENT: [0.25, 0.50, 0.75, 1.00],
   FIX_HOUR_NY: 16,
+  API_TIMEOUT: 4000,                // ms — per-API timeout
 };
 
 // ------------------------------------------------------------
@@ -32,6 +34,8 @@ const state = {
   deltaChart: null,
   spotChartReady: false,
   marketCache: { data: [], timestamp: 0 },
+  activeApi: "—",                   // name of the API that last succeeded
+  apiFailCount: 0,                  // consecutive failures of the primary API
 };
 
 // ------------------------------------------------------------
@@ -91,46 +95,129 @@ function getPreviousFixTimestamp() {
 }
 
 // ------------------------------------------------------------
-// API — CURRENT PRICE
+// API PROVIDERS — MULTI-SOURCE FALLBACK CHAIN
 // ------------------------------------------------------------
-async function fetchCurrentPrice() {
-  try {
-    const res = await fetch(
-      "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true",
-      { signal: AbortSignal.timeout(5000) }
-    );
-    if (res.ok) {
-      const data = await res.json();
-      if (data?.bitcoin?.usd) {
-        return {
-          price: data.bitcoin.usd,
-          change24h: data.bitcoin.usd_24h_change ?? 0,
-        };
+/**
+ * Each provider is an async function that returns
+ * { price: number, change24h: number, source: string } or throws.
+ */
+
+/** Provider 1 — Coinbase (CORS-enabled public spot endpoint) */
+async function fetchFromCoinbase() {
+  const res = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot", {
+    signal: AbortSignal.timeout(CONFIG.API_TIMEOUT),
+  });
+  if (!res.ok) throw new Error(`Coinbase HTTP ${res.status}`);
+  const data = await res.json();
+  const price = parseFloat(data?.data?.amount);
+  if (!price || Number.isNaN(price)) throw new Error("Coinbase: invalid price");
+  // Coinbase spot does not return 24h change; compute from history later.
+  return { price, change24h: null, source: "Coinbase" };
+}
+
+/** Provider 2 — CoinGecko (already used, kept as fallback) */
+async function fetchFromCoinGecko() {
+  const res = await fetch(
+    "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true",
+    { signal: AbortSignal.timeout(CONFIG.API_TIMEOUT) }
+  );
+  if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`);
+  const data = await res.json();
+  const price = data?.bitcoin?.usd;
+  const change = data?.bitcoin?.usd_24h_change ?? 0;
+  if (!price) throw new Error("CoinGecko: invalid price");
+  return { price, change24h: change, source: "CoinGecko" };
+}
+
+/** Provider 3 — CoinMarketCap Keyless Public API */
+async function fetchFromCoinMarketCap() {
+  const res = await fetch(
+    "https://pro-api.coinmarketcap.com/public-api/v1/simple/price?ids=1&convert=USD",
+    { signal: AbortSignal.timeout(CONFIG.API_TIMEOUT) }
+  );
+  if (!res.ok) throw new Error(`CMC HTTP ${res.status}`);
+  const data = await res.json();
+  const price = data?.data?.[0]?.price;
+  if (!price || Number.isNaN(price)) throw new Error("CMC: invalid price");
+  return { price, change24h: null, source: "CoinMarketCap" };
+}
+
+/** Provider 4 — WhiteBIT public ticker */
+async function fetchFromWhiteBIT() {
+  const res = await fetch("https://whitebit.com/api/v4/public/ticker", {
+    signal: AbortSignal.timeout(CONFIG.API_TIMEOUT),
+  });
+  if (!res.ok) throw new Error(`WhiteBIT HTTP ${res.status}`);
+  const data = await res.json();
+  const entry = data?.BTC_USDT;
+  if (!entry?.last_price) throw new Error("WhiteBIT: invalid ticker");
+  const price = parseFloat(entry.last_price);
+  const change = parseFloat(entry.change) || 0;
+  return { price, change24h: change, source: "WhiteBIT" };
+}
+
+/** Provider 5 — Binance via public CORS proxy (last resort) */
+async function fetchFromBinanceViaProxy() {
+  const target = "https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT";
+  const proxied = `https://corsproxy.io/?${encodeURIComponent(target)}`;
+  const res = await fetch(proxied, {
+    signal: AbortSignal.timeout(CONFIG.API_TIMEOUT + 2000),
+  });
+  if (!res.ok) throw new Error(`Binance proxy HTTP ${res.status}`);
+  const data = await res.json();
+  const price = parseFloat(data?.lastPrice);
+  const change = parseFloat(data?.priceChangePercent) || 0;
+  if (!price || Number.isNaN(price)) throw new Error("Binance: invalid price");
+  return { price, change24h: change, source: "Binance (proxy)" };
+}
+
+/**
+ * The ordered list of providers. The first one that succeeds wins.
+ * Order reflects reliability + CORS-friendliness for browsers.
+ */
+const PRICE_PROVIDERS = [
+  { name: "Coinbase",         fn: fetchFromCoinbase },
+  { name: "CoinGecko",        fn: fetchFromCoinGecko },
+  { name: "CoinMarketCap",    fn: fetchFromCoinMarketCap },
+  { name: "WhiteBIT",         fn: fetchFromWhiteBIT },
+  { name: "Binance (proxy)",  fn: fetchFromBinanceViaProxy },
+];
+
+/**
+ * Try every provider in order until one succeeds.
+ * Returns { price, change24h, source } or null if all fail.
+ */
+async function fetchPriceWithFallback() {
+  for (const provider of PRICE_PROVIDERS) {
+    try {
+      const result = await provider.fn();
+      if (result && result.price) {
+        state.activeApi = result.source;
+        state.apiFailCount = 0;
+        return result;
       }
+    } catch (err) {
+      // Silent fail — try the next provider.
+      console.warn(`[price] ${provider.name} failed: ${err.message}`);
+      state.apiFailCount++;
     }
-  } catch (err) {
-    console.warn("[fetchCurrentPrice] CoinGecko failed:", err.message);
   }
 
-  try {
-    const res = await fetch("https://biquote.io/api/v1/tick?symbol=BTCUSD", {
-      signal: AbortSignal.timeout(5000),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      const price = data.mid ?? data.price ?? data.ask;
-      if (price) return { price, change24h: data.dayDiffPercent ?? 0 };
-    }
-  } catch (err) {
-    console.warn("[fetchCurrentPrice] biquote.io failed:", err.message);
-  }
-
+  // All providers failed — keep the last known price.
+  console.error("[price] All providers failed.");
   const last = state.currentPrice || state.previousPrice || 0;
-  return { price: last, change24h: state.change24h };
+  return { price: last, change24h: state.change24h, source: "cached" };
+}
+
+/**
+ * Convenience wrapper kept for API compatibility with the rest of the code.
+ */
+async function fetchCurrentPrice() {
+  return fetchPriceWithFallback();
 }
 
 // ------------------------------------------------------------
-// API — MARKET HISTORY
+// API — MARKET HISTORY (for charts and fix extraction)
 // ------------------------------------------------------------
 async function fetchMarketHistory(force = false) {
   const now = Date.now();
@@ -140,6 +227,7 @@ async function fetchMarketHistory(force = false) {
     return cached.data;
   }
 
+  // Try CoinGecko first (it returns a reliable 2-day series).
   try {
     const res = await fetch(
       "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=2",
@@ -154,7 +242,29 @@ async function fetchMarketHistory(force = false) {
       }
     }
   } catch (err) {
-    console.warn("[fetchMarketHistory] failed:", err.message);
+    console.warn("[history] CoinGecko failed:", err.message);
+  }
+
+  // Fallback: CoinCap (public, CORS-friendly historical series).
+  try {
+    const res = await fetch(
+      "https://api.coincap.io/v2/assets/bitcoin/history?interval=h1",
+      { signal: AbortSignal.timeout(10000) }
+    );
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data?.data) && data.data.length) {
+        // Convert CoinCap shape { time, priceUsd } → [[timestampMs, price], …]
+        const series = data.data
+          .map((p) => [Number(p.time), parseFloat(p.priceUsd)])
+          .sort((a, b) => a[0] - b[0]);
+        cached.data = series;
+        cached.timestamp = now;
+        return cached.data;
+      }
+    }
+  } catch (err) {
+    console.warn("[history] CoinCap failed:", err.message);
   }
 
   return cached.data;
@@ -516,7 +626,6 @@ function initDeltaChart() {
 function setDeltaChartFromHistory(history) {
   if (!state.deltaChart || !history.length || !state.fixPrice) return;
 
-  // Use the last 24 hours of data, or all if not enough.
   const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
   const recent = history.filter((p) => p[0] >= oneDayAgo);
   const source = recent.length > 4 ? recent : history;
@@ -661,6 +770,9 @@ async function refreshSpot() {
     renderLevels();
     appendLivePoint(price);
     appendDeltaPoint(price);
+
+    // Small visual log so you can see which API served the price.
+    console.log(`[spot] ${state.activeApi} → $${price.toFixed(2)}`);
   }
 }
 
@@ -678,7 +790,7 @@ async function bootstrap() {
 
   state.chartData = history || [];
   state.currentPrice = spot.price;
-  state.change24h = spot.change24h;
+  state.change24h = spot.change24h ?? 0;
 
   const fix = extractFixFromHistory(state.chartData);
   if (fix) {
